@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -114,6 +114,10 @@ public class StompDecoder {
 			Message<byte[]> message = decodeMessage(byteBuffer, partialMessageHeaders);
 			if (message != null) {
 				messages.add(message);
+				skipEol(byteBuffer);
+				if (!byteBuffer.hasRemaining()) {
+					break;
+				}
 			}
 			else {
 				break;
@@ -128,7 +132,7 @@ public class StompDecoder {
 	@Nullable
 	private Message<byte[]> decodeMessage(ByteBuffer byteBuffer, @Nullable MultiValueMap<String, String> headers) {
 		Message<byte[]> decodedMessage = null;
-		skipLeadingEol(byteBuffer);
+		skipEol(byteBuffer);
 
 		// Explicit mark/reset access via Buffer base type for compatibility
 		// with covariant return type on JDK 9's ByteBuffer...
@@ -196,9 +200,10 @@ public class StompDecoder {
 
 	/**
 	 * Skip one ore more EOL characters at the start of the given ByteBuffer.
-	 * Those are STOMP heartbeat frames.
+	 * STOMP, section 2.1 says: "The NULL octet can be optionally followed by
+	 * multiple EOLs."
 	 */
-	protected void skipLeadingEol(ByteBuffer byteBuffer) {
+	protected void skipEol(ByteBuffer byteBuffer) {
 		while (true) {
 			if (!tryConsumeEndOfLine(byteBuffer)) {
 				break;
@@ -255,7 +260,7 @@ public class StompDecoder {
 
 	/**
 	 * See STOMP Spec 1.2:
-	 * <a href="http://stomp.github.io/stomp-specification-1.2.html#Value_Encoding">"Value Encoding"</a>.
+	 * <a href="https://stomp.github.io/stomp-specification-1.2.html#Value_Encoding">"Value Encoding"</a>.
 	 */
 	private String unescape(String inString) {
 		StringBuilder sb = new StringBuilder(inString.length());
@@ -267,7 +272,7 @@ public class StompDecoder {
 			if (index + 1 >= inString.length()) {
 				throw new StompConversionException("Illegal escape sequence at index " + index + ": " + inString);
 			}
-			Character c = inString.charAt(index + 1);
+			char c = inString.charAt(index + 1);
 			if (c == 'r') {
 				sb.append('\r');
 			}

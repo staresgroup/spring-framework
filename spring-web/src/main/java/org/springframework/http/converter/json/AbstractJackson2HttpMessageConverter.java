@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,6 @@ package org.springframework.http.converter.json;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,6 +36,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.exc.InvalidDefinitionException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.ser.FilterProvider;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
@@ -72,7 +72,9 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 	/**
 	 * The default charset used by the converter.
 	 */
-	public static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
+	@Nullable
+	@Deprecated
+	public static final Charset DEFAULT_CHARSET = null;
 
 
 	protected ObjectMapper objectMapper;
@@ -86,7 +88,6 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 
 	protected AbstractJackson2HttpMessageConverter(ObjectMapper objectMapper) {
 		this.objectMapper = objectMapper;
-		setDefaultCharset(DEFAULT_CHARSET);
 		DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
 		prettyPrinter.indentObjectsWith(new DefaultIndenter("  ", "\ndata:"));
 		this.ssePrettyPrinter = prettyPrinter;
@@ -238,8 +239,14 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 			}
 			return this.objectMapper.readValue(inputMessage.getBody(), javaType);
 		}
-		catch (InvalidDefinitionException ex) {
+		catch (MismatchedInputException ex) {  // specific kind of JsonMappingException
+			throw new HttpMessageNotReadableException("Invalid JSON input: " + ex.getOriginalMessage(), ex, inputMessage);
+		}
+		catch (InvalidDefinitionException ex) {  // another kind of JsonMappingException
 			throw new HttpMessageConversionException("Type definition error: " + ex.getType(), ex);
+		}
+		catch (JsonMappingException ex) {  // typically ValueInstantiationException
+			throw new HttpMessageConversionException("JSON conversion problem: " + ex.getOriginalMessage(), ex);
 		}
 		catch (JsonProcessingException ex) {
 			throw new HttpMessageNotReadableException("JSON parse error: " + ex.getOriginalMessage(), ex, inputMessage);
@@ -289,8 +296,14 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 			writeSuffix(generator, object);
 			generator.flush();
 		}
-		catch (InvalidDefinitionException ex) {
+		catch (MismatchedInputException ex) {  // specific kind of JsonMappingException
+			throw new HttpMessageNotWritableException("Invalid JSON input: " + ex.getOriginalMessage(), ex);
+		}
+		catch (InvalidDefinitionException ex) {  // another kind of JsonMappingException
 			throw new HttpMessageConversionException("Type definition error: " + ex.getType(), ex);
+		}
+		catch (JsonMappingException ex) {  // typically ValueInstantiationException
+			throw new HttpMessageConversionException("JSON mapping problem: " + ex.getPathReference(), ex);
 		}
 		catch (JsonProcessingException ex) {
 			throw new HttpMessageNotWritableException("Could not write JSON: " + ex.getOriginalMessage(), ex);
